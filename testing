@@ -1,0 +1,65 @@
+!pip install sparqlwrapper
+!pip install SPARQLWrapper
+# https://rdflib.github.io/sparqlwrapper/
+
+import pandas as pd
+import time 
+from tqdm import tqdm
+from SPARQLWrapper import SPARQLWrapper, JSON
+
+endpoint_url = "https://query.wikidata.org/sparql"
+
+query = """
+PREFIX wikibase: <http://wikiba.se/ontology#>
+PREFIX wd: <http://www.wikidata.org/entity/>
+PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?human ?cause ?date_of_birth ?date_of_death ?country ?occupation WHERE {
+  ?h wdt:P31 wd:Q5.
+  ?h wdt:P1196 ?cid.
+  ?h wdt:P570 ?date_of_death.
+  ?h wdt:P106 ?occup.
+  ?h wdt:P27 ?count
+  Filter ((str(?cause)) = "suicide" || (str(?cause)) ="homicide" || (str(?cause)) = "natural causes" || str(?cause) = "accident")
+  OPTIONAL {
+    ?h rdfs:label ?human.
+    FILTER((LANG(?human)) = "en")
+  }
+  OPTIONAL {
+    ?cid rdfs:label ?cause.
+    FILTER((LANG(?cause)) = "en")
+  }
+  OPTIONAL {
+    ?count rdfs:label ?country.
+    FILTER((LANG(?country)) = "en")
+  }
+    OPTIONAL {
+    ?occup rdfs:label ?occupation.
+    FILTER((LANG(?occupation)) = "en")
+  }
+}
+limit  %s
+offset %s
+"""
+
+def get_results(endpoint_url, query, limit=100000, offset=0):
+    sparql = SPARQLWrapper(endpoint_url)
+    sparql.setQuery(query % (limit, offset))
+    sparql.setReturnFormat(JSON)
+    return sparql.query().convert()
+
+max_items = 100000
+batch_size = 50000
+to_skip = 0
+
+results = []
+for i in tqdm(range(max_items//batch_size)):
+  results.extend(get_results(endpoint_url, query, limit=batch_size, offset=to_skip)['results']['bindings'])
+  to_skip += batch_size
+  time.sleep(10)
+
+
+data = pd.DataFrame([{k: v['value'] for k, v in d.items()} for d in results])
+print(f'Got {len(data)} items from wikidata')
+data.head()
