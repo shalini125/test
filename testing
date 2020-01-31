@@ -1,4 +1,3 @@
-!pip install sparqlwrapper
 !pip install SPARQLWrapper
 # https://rdflib.github.io/sparqlwrapper/
 
